@@ -1,0 +1,61 @@
+openapi: 3.1.0
+info:
+  title: Dial Dozer Public API
+  version: 1.0.0
+  description: >-
+    Source-backed contract for seven key-authenticated modern operations.
+    api_v1.php uses query routing, so its three GET actions and two POST actions
+    share OpenAPI Path Items. x-dialdozer-operations preserves each deployed
+    operation explicitly. Component schemas live in the sibling JSON document.
+servers:
+  - url: https://app.dialdozer.com
+security:
+  - ApiKey: []
+x-dialdozer-operations:
+  - operationId: createLead
+    method: POST
+    path: /hooks/lead_intake.php
+    scope: leads:write
+  - operationId: getLead
+    method: GET
+    path: /hooks/api_v1.php
+    query: {r: 'leads/{lead_id}'}
+    scope: leads:read
+  - operationId: getConversation
+    method: GET
+    path: /hooks/api_v1.php
+    query: {r: 'conversations/{lead_id}'}
+    scope: conversations:read
+  - operationId: sendMessage
+    method: POST
+    path: /hooks/api_v1.php
+    query: {r: messages}
+    scope: messages:write
+  - operationId: queueCtiDial
+    method: POST
+    path: /hooks/api_v1.php
+    query: {r: cti/dial}
+    scope: cti
+  - operationId: lookupCtiCaller
+    method: GET
+    path: /hooks/api_v1.php
+    query: {r: cti/lookup}
+    scope: cti
+  - operationId: ingestKpiPoints
+    method: POST
+    path: /hooks/kpi_ingest.php
+    scope: metrics:write
+paths:
+  /hooks/lead_intake.php:
+    $ref: './openapi.json#/paths/~1hooks~1lead_intake.php'
+  /hooks/api_v1.php:
+    $ref: './openapi.json#/paths/~1hooks~1api_v1.php'
+  /hooks/kpi_ingest.php:
+    $ref: './openapi.json#/paths/~1hooks~1kpi_ingest.php'
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: Active Dial Dozer API key with the operation's required scope.

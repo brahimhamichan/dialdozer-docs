@@ -1,0 +1,29 @@
+# DialDozer Docs
+
+> Developer documentation for DialDozer APIs, MCP tools, CLI commands, lead intake, conversations, messaging, CTI, webhooks, and agent workflows.
+
+Canonical: https://docs.dialdozer.com/
+OpenAPI: https://docs.dialdozer.com/openapi.yaml
+Expanded agent context: https://docs.dialdozer.com/llms-full.txt
+
+## Start
+- https://docs.dialdozer.com/getting-started/overview/
+- https://docs.dialdozer.com/getting-started/quickstart/
+- https://docs.dialdozer.com/getting-started/authentication/
+
+## API
+- https://docs.dialdozer.com/api-reference/overview/
+- https://docs.dialdozer.com/api-reference/leads/
+- https://docs.dialdozer.com/api-reference/conversations/
+- https://docs.dialdozer.com/api-reference/messages/
+- https://docs.dialdozer.com/api-reference/cti/
+- https://docs.dialdozer.com/api-reference/lead-intake/
+- https://docs.dialdozer.com/api-reference/errors/
+
+## Agent tools
+- https://docs.dialdozer.com/mcp/overview/
+- https://docs.dialdozer.com/mcp/setup/
+- https://docs.dialdozer.com/mcp/tools/
+- https://docs.dialdozer.com/cli/overview/
+- https://docs.dialdozer.com/cli/commands/
+- https://docs.dialdozer.com/guides/agent-friendly/

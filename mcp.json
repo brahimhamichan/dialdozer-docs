@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "name": "com.dialdozer/mcp",
+  "title": "DialDozer",
+  "description": "Scoped tools for leads, conversations, messages, CTI, lead intake, and KPI ingestion.",
+  "transport": "stdio",
+  "command": "node",
+  "args": ["tools/dialdozer/bin/dialdozer-mcp.mjs"],
+  "environment": ["DIALDOZER_API_KEY", "DIALDOZER_BASE_URL"],
+  "documentation": "https://docs.dialdozer.com/mcp/setup/"
+}

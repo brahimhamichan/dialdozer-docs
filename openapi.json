@@ -1,0 +1,114 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Dial Dozer Public API",
+    "version": "1.0.0",
+    "description": "Source-backed contract for seven key-authenticated modern operations. api_v1.php uses query routing, so its three GET actions and two POST actions share OpenAPI Path Items; x-dialdozer-operations preserves each deployed operation explicitly."
+  },
+  "servers": [{"url": "https://app.dialdozer.com"}],
+  "security": [{"ApiKey": []}],
+  "x-dialdozer-operations": [
+    {"operationId":"createLead","method":"POST","path":"/hooks/lead_intake.php","scope":"leads:write"},
+    {"operationId":"getLead","method":"GET","path":"/hooks/api_v1.php","query":{"r":"leads/{lead_id}"},"scope":"leads:read"},
+    {"operationId":"getConversation","method":"GET","path":"/hooks/api_v1.php","query":{"r":"conversations/{lead_id}"},"scope":"conversations:read"},
+    {"operationId":"sendMessage","method":"POST","path":"/hooks/api_v1.php","query":{"r":"messages"},"scope":"messages:write"},
+    {"operationId":"queueCtiDial","method":"POST","path":"/hooks/api_v1.php","query":{"r":"cti/dial"},"scope":"cti"},
+    {"operationId":"lookupCtiCaller","method":"GET","path":"/hooks/api_v1.php","query":{"r":"cti/lookup"},"scope":"cti"},
+    {"operationId":"ingestKpiPoints","method":"POST","path":"/hooks/kpi_ingest.php","scope":"metrics:write"}
+  ],
+  "paths": {
+    "/hooks/lead_intake.php": {
+      "post": {
+        "operationId": "createLead",
+        "summary": "Create or deduplicate a lead",
+        "description": "Requires leads:write. Fixed limit: 120 requests/hour/key.",
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/LeadCreate"}}}},
+        "responses": {
+          "200": {"description":"Created or deduplicated","content":{"application/json":{"schema":{"$ref":"#/components/schemas/LeadCreateResult"}}}},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "422": {"$ref":"#/components/responses/ValidationError"},
+          "429": {"$ref":"#/components/responses/RateLimited"},
+          "500": {"$ref":"#/components/responses/ServerError"}
+        }
+      }
+    },
+    "/hooks/api_v1.php": {
+      "get": {
+        "operationId": "readLeadConversationOrCtiLookup",
+        "summary": "Get lead, get conversation, or CTI lookup",
+        "description": "Query-router Path Item for three deployed GET operations. r is leads/{lead_id}, conversations/{lead_id}, or cti/lookup. Required scope depends on the selected route.",
+        "parameters": [
+          {"name":"r","in":"query","required":true,"schema":{"type":"string","pattern":"^(leads/[0-9]+|conversations/[0-9]+|cti/lookup)$"},"examples":{"lead":{"value":"leads/48219"},"conversation":{"value":"conversations/48219"},"cti":{"value":"cti/lookup"}}},
+          {"name":"phone","in":"query","required":false,"description":"Required when r=cti/lookup.","schema":{"type":"string"}}
+        ],
+        "responses": {
+          "200": {"description":"Route-specific result","content":{"application/json":{"schema":{"oneOf":[{"$ref":"#/components/schemas/LeadResult"},{"$ref":"#/components/schemas/ConversationResult"},{"$ref":"#/components/schemas/CtiLookupFound"},{"$ref":"#/components/schemas/CtiLookupMiss"}]}}}},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "422": {"$ref":"#/components/responses/ValidationError"},
+          "429": {"$ref":"#/components/responses/RateLimited"}
+        }
+      },
+      "post": {
+        "operationId": "sendMessageOrQueueCtiDial",
+        "summary": "Send a message/note or queue a CTI dial",
+        "description": "Query-router Path Item for two deployed POST operations. r is messages (messages:write) or cti/dial (cti).",
+        "parameters": [{"name":"r","in":"query","required":true,"schema":{"type":"string","enum":["messages","cti/dial"]}}],
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"oneOf":[{"$ref":"#/components/schemas/MessageSend"},{"$ref":"#/components/schemas/CtiDial"}]}}}},
+        "responses": {
+          "200": {"description":"Route-specific result; message domain failures can use HTTP 200 with ok=false.","content":{"application/json":{"schema":{"oneOf":[{"$ref":"#/components/schemas/MessageResult"},{"$ref":"#/components/schemas/CtiDialResult"}]}}}},
+          "402": {"description":"Message blocked by billing gate","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MessageResult"}}}},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "404": {"$ref":"#/components/responses/NotFound"},
+          "422": {"$ref":"#/components/responses/ValidationError"},
+          "429": {"$ref":"#/components/responses/RateLimited"}
+        }
+      }
+    },
+    "/hooks/kpi_ingest.php": {
+      "post": {
+        "operationId": "ingestKpiPoints",
+        "summary": "Upsert KPI points",
+        "description": "Requires metrics:write. Accepts one point, a points wrapper, or a bare array up to 500. Fixed limit: 600 requests/hour/key.",
+        "requestBody": {"required":true,"content":{"application/json":{"schema":{"oneOf":[{"$ref":"#/components/schemas/KpiPoint"},{"$ref":"#/components/schemas/KpiBatch"},{"type":"array","minItems":1,"maxItems":500,"items":{"$ref":"#/components/schemas/KpiPoint"}}]}}}},
+        "responses": {
+          "200": {"description":"At least one point was upserted","content":{"application/json":{"schema":{"$ref":"#/components/schemas/KpiResult"}}}},
+          "403": {"$ref":"#/components/responses/Forbidden"},
+          "422": {"$ref":"#/components/responses/ValidationError"},
+          "429": {"$ref":"#/components/responses/RateLimited"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"ApiKey":{"type":"apiKey","in":"header","name":"X-Api-Key","description":"Active Dial Dozer API key with the operation's required scope."}},
+    "responses": {
+      "Forbidden": {"description":"Unknown/revoked key, wrong scope, or unbound CTI agent","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}},
+      "NotFound": {"description":"Resource inaccessible or route unknown","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}},
+      "ValidationError": {"description":"Input validation failed","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}},
+      "RateLimited": {"description":"Fixed-window limit exceeded; Retry-After is not currently emitted.","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"},"example":{"ok":false,"error":"rate_limited"}}}},
+      "ServerError": {"description":"Database or insert failure","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}
+    },
+    "schemas": {
+      "Error": {"type":"object","required":["ok","error"],"properties":{"ok":{"type":"boolean","const":false},"error":{"type":"string"},"message":{"type":"string"},"errors":{"type":"array","items":{"type":"object"}}},"additionalProperties":true},
+      "LeadCreate": {"type":"object","required":["phone"],"properties":{"first_name":{"type":"string","maxLength":60},"last_name":{"type":"string","maxLength":60},"phone":{"type":"string"},"email":{"type":"string"},"address1":{"type":"string","maxLength":120},"city":{"type":"string","maxLength":60},"state":{"type":"string","maxLength":20},"postal_code":{"type":"string","maxLength":20},"list_id":{"type":"integer"},"source":{"type":"string","maxLength":50},"hopper":{"type":"boolean"}},"additionalProperties":true},
+      "LeadCreateResult": {"type":"object","required":["ok","lead_id","deduped"],"properties":{"ok":{"type":"boolean","const":true},"lead_id":{"type":"integer"},"deduped":{"type":"boolean"}},"additionalProperties":false},
+      "Lead": {"type":"object","required":["lead_id","first_name","last_name","phone","email","address1","city","state","postal_code","status","campaign"],"properties":{"lead_id":{"type":"integer"},"first_name":{"type":"string"},"last_name":{"type":"string"},"phone":{"type":"string"},"email":{"type":"string"},"address1":{"type":"string"},"city":{"type":"string"},"state":{"type":"string"},"postal_code":{"type":"string"},"status":{"type":"string"},"campaign":{"type":"string"}},"additionalProperties":false},
+      "LeadResult": {"type":"object","required":["ok","lead"],"properties":{"ok":{"type":"boolean","const":true},"lead":{"$ref":"#/components/schemas/Lead"}},"additionalProperties":false},
+      "ConversationLead": {"type":"object","required":["lead_id","name","phone","status"],"properties":{"lead_id":{"type":"integer"},"name":{"type":"string"},"phone":{"type":"string"},"status":{"type":"string"}},"additionalProperties":false},
+      "MessageEntry": {"type":"object","required":["kind","id","channel","direction","actor_type","actor_id","subject","body","status","error","meta","epoch"],"properties":{"kind":{"const":"msg"},"id":{"type":"integer"},"channel":{"type":"string"},"direction":{"type":"string"},"actor_type":{"type":"string"},"actor_id":{"type":"string"},"subject":{"type":"string"},"body":{"type":"string"},"status":{"type":"string"},"error":{"type":"string"},"meta":{"type":["object","array","null"]},"epoch":{"type":"integer"}},"additionalProperties":false},
+      "CallEntry": {"type":"object","required":["kind","status","secs","agent","recording_id","ai_summary","epoch"],"properties":{"kind":{"const":"call"},"status":{"type":"string"},"secs":{"type":"integer"},"agent":{"type":"string"},"recording_id":{"type":["integer","null"]},"ai_summary":{"type":["string","null"]},"epoch":{"type":"integer"}},"additionalProperties":false},
+      "EventEntry": {"type":"object","required":["kind","event","label","actor","actor_role","note","epoch"],"properties":{"kind":{"const":"event"},"event":{"type":"string"},"label":{"type":"string"},"actor":{"type":"string"},"actor_role":{"type":"string"},"note":{"type":"string"},"epoch":{"type":"integer"}},"additionalProperties":false},
+      "ConversationResult": {"type":"object","required":["ok","lead","entries"],"properties":{"ok":{"type":"boolean","const":true},"lead":{"$ref":"#/components/schemas/ConversationLead"},"entries":{"type":"array","maxItems":200,"items":{"oneOf":[{"$ref":"#/components/schemas/MessageEntry"},{"$ref":"#/components/schemas/CallEntry"},{"$ref":"#/components/schemas/EventEntry"}]}}},"additionalProperties":false},
+      "MessageSend": {"type":"object","required":["lead_id","channel","body","operation_id"],"properties":{"lead_id":{"type":"integer"},"channel":{"type":"string","enum":["sms","email","note"]},"body":{"type":"string"},"subject":{"type":"string"},"operation_id":{"type":"string","minLength":1,"maxLength":96,"pattern":"^[A-Za-z0-9_.:-]+$"}},"additionalProperties":true},
+      "MessageResult": {"type":"object","required":["ok"],"properties":{"ok":{"type":"boolean"},"message_id":{"type":["integer","null"]},"reason":{"type":"string"},"defer_until":{"type":"integer"}},"additionalProperties":true},
+      "CtiDial": {"type":"object","required":["phone"],"properties":{"phone":{"type":"string"}},"additionalProperties":true},
+      "CtiDialResult": {"type":"object","required":["ok","id","lead_id"],"properties":{"ok":{"type":"boolean","const":true},"id":{"type":"integer"},"lead_id":{"type":["integer","null"]}},"additionalProperties":false},
+      "CtiLookupFound": {"type":"object","required":["ok","found","lead_id","name"],"properties":{"ok":{"type":"boolean","const":true},"found":{"type":"boolean","const":true},"lead_id":{"type":"integer"},"name":{"type":"string"}},"additionalProperties":false},
+      "CtiLookupMiss": {"type":"object","required":["ok","found"],"properties":{"ok":{"type":"boolean","const":true},"found":{"type":"boolean","const":false}},"additionalProperties":false},
+      "KpiPoint": {"type":"object","required":["metric_key","value"],"properties":{"metric_key":{"type":"string","minLength":1,"maxLength":60,"pattern":"^[a-zA-Z0-9_.:-]+$"},"day":{"type":"string","pattern":"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},"value":{"type":["number","string"]},"dim_key":{"type":"string","maxLength":80},"org_id":{"type":"integer"}},"additionalProperties":true},
+      "KpiBatch": {"type":"object","required":["points"],"properties":{"org_id":{"type":"integer"},"points":{"type":"array","minItems":1,"maxItems":500,"items":{"$ref":"#/components/schemas/KpiPoint"}}},"additionalProperties":true},
+      "KpiResult": {"type":"object","required":["ok","upserts"],"properties":{"ok":{"type":"boolean","const":true},"upserts":{"type":"integer","minimum":1},"errors":{"type":"array","items":{"type":"object","required":["index","error"],"properties":{"index":{"type":"integer"},"error":{"type":"string"}},"additionalProperties":false}}},"additionalProperties":false}
+    }
+  }
+}
